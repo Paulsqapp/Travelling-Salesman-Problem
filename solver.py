@@ -2,6 +2,7 @@ import math
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
 
+# score  35/60 points earned
   
 from collections import namedtuple
 
@@ -156,7 +157,7 @@ import sys
 
 if __name__ == '__main__':
     import sys
-    file_location = "C:/Users/paul kuria/Documents/tsp/data/tsp_5_1" # tsp_51_1, tsp_5_1
+    file_location = "path_to_files" # tsp_51_1, tsp_5_1
     with open(file_location, 'r') as input_data_file:
         input_data = input_data_file.read()
         print(solve_it(input_data))
