@@ -1,44 +1,19 @@
-import math
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
+# multiply by 100
+
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
 
-# score  35/60 points earned
-  
-from collections import namedtuple
+import numpy as np
 
-Point = namedtuple("Point", ['x', 'y'])
-
-def length(point1, point2):
-    return math.sqrt((point1.x - point2.x)**2 + (point1.y - point2.y)**2)
-
-def create_data_model(a):
-    """Stores the data for the problem."""
-    data = {}
-    data["locations"] = a
-    data["num_vehicles"] = 1
-    data["depot"] = 0
-    return data
-
-def compute_euclidean_distance_matrix(locations):
-    """Creates callback to return distance between points."""
-    distances = {}
-    for from_counter, from_node in enumerate(locations):
-        distances[from_counter] = {}
-        for to_counter, to_node in enumerate(locations):
-            if from_counter == to_counter:
-                distances[from_counter][to_counter] = 0
-            else:
-                # Euclidean distance
-                distances[from_counter][to_counter] = int(
-                    math.hypot((from_node[0] - to_node[0]), (from_node[1] - to_node[1]))
-                )
-    return distances
 
 def print_solution(manager, routing, solution):
     """Prints solution on console."""
-    print(f"Objective: {solution.ObjectiveValue()}")
+    print(f"Objective: {solution.ObjectiveValue()} miles")
     index = routing.Start(0)
-    plan_output = "Route:\n"
+    plan_output = "Route for vehicle 0:\n"
     route_distance = 0
     while not routing.IsEnd(index):
         plan_output += f" {manager.IndexToNode(index)} ->"
@@ -46,10 +21,8 @@ def print_solution(manager, routing, solution):
         index = solution.Value(routing.NextVar(index))
         route_distance += routing.GetArcCostForVehicle(previous_index, index, 0)
     plan_output += f" {manager.IndexToNode(index)}\n"
-    #print('003-----',plan_output, route_distance)
-    print(f'kuma ya brenda {plan_output} & {route_distance}')
-    plan_output += f"Objective: {route_distance}m\n"
-    return f'{plan_output},{route_distance} '
+    print(plan_output)
+    plan_output += f"Route distance: {route_distance}miles\n"
 
 def get_routes(solution, routing, manager):
     """Get vehicle routes from a solution and store them in an array."""
@@ -62,8 +35,7 @@ def get_routes(solution, routing, manager):
         while not routing.IsEnd(index):
             index = solution.Value(routing.NextVar(index))
             route.append(manager.IndexToNode(index))
-            routes.append(route)
-    
+        routes.append(route)
     return routes
 
 def solve_it(input_data):
@@ -74,92 +46,93 @@ def solve_it(input_data):
 
     nodeCount = int(lines[0])
 
-    points, points_b = [], []
+    points = dict()
+    points['distance_matrix'] = []
+    points["num_vehicles"] = 1
+    points["depot"] = 0
+    all_point = []
     for i in range(1, nodeCount+1):
+        #print('i',i)
         line = lines[i]
         parts = line.split()
-        points.append(Point(float(parts[0]), float(parts[1])))
-        points_b.append((float(parts[0]), float(parts[1])))
         
-    data = create_data_model(points_b)
-    #print('data',points_b)
-    manager = pywrapcp.RoutingIndexManager(
-        len(data["locations"]), data["num_vehicles"], data["depot"]
-    )
+        #print('start_point',start_point)
+        current_point = np.array([float(parts[0]), float(parts[1])])
+        all_point.append(current_point)
+        
+        
+    #print('001', all_point)
 
-    # Create Routing Model.
+    for x in all_point:
+        distance = [int(np.linalg.norm(x - b)*1000) for b in all_point]
+        points['distance_matrix'].append(distance)
+        
+    #print('distance \n', points['distance_matrix'])
+
+    manager = pywrapcp.RoutingIndexManager(
+        len(points["distance_matrix"]), points["num_vehicles"], points["depot"]
+        )
     routing = pywrapcp.RoutingModel(manager)
 
-    distance_matrix = compute_euclidean_distance_matrix(data["locations"])
-
-    #print('001',   distance_matrix)
-
-    
     def distance_callback(from_index, to_index):
         """Returns the distance between the two nodes."""
         # Convert from routing variable Index to distance matrix NodeIndex.
         from_node = manager.IndexToNode(from_index)
         to_node = manager.IndexToNode(to_index)
-        return distance_matrix[from_node][to_node]
-
+        return points['distance_matrix'][from_node][to_node]
+    
+    #print('routing', routing)
     transit_callback_index = routing.RegisterTransitCallback(distance_callback)
-
-    #print('002',   transit_callback_index)
-
-    # Define cost of each arc.
+     # Define cost of each arc.
     routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
 
-    # Setting first solution heuristic.
+    
     search_parameters = pywrapcp.DefaultRoutingSearchParameters()
     search_parameters.first_solution_strategy = (
-        routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
-    )
-
+        routing_enums_pb2.FirstSolutionStrategy.PARALLEL_CHEAPEST_INSERTION 
+    ) #FIRST_UNBOUND_MIN_VALUE, SWEEP, SAVINGS #AUTOMATIC, PATH_CHEAPEST_ARC, CHRISTOFIDES
+    '''
+    search_parameters = pywrapcp.DefaultRoutingSearchParameters()
+    search_parameters.local_search_metaheuristic = (
+        routing_enums_pb2.LocalSearchMetaheuristic.SIMULATED_ANNEALING) #AUTOMATIC, TABU_SEARCH, GENERIC_TABU_SEARCH, SIMULATED_ANNEALING
+    search_parameters.time_limit.seconds = 30
+    #search_parameters.log_search = True
+    '''
     # Solve the problem.
     solution = routing.SolveWithParameters(search_parameters)
-    #print('009', solution) weired output
-    #sol = ''
-    # Print solution on console.
     '''
+    # Print solution on console.
     if solution:
-        #print_solution(manager, routing, solution)
-        sol = print_solution(manager, routing, solution)
-
-    print('sol',sol)
+        print_solution(manager, routing, solution)
+        return True
+    #else:
+    #    return False
     '''
     routes = get_routes(solution, routing, manager)
-    solution_ = []
     # Display the routes.
-    #print(solution.ObjectiveValue())
-    for i, route in enumerate(routes):
-        #print('Route', i, route)
-        solution_ = route[:-1]
-        break
+    
+    cost = round((solution.ObjectiveValue()/1000), 2)
+    #print('cost',str(routes[0][:-1]))
+    
+    #print(routes, 'distance', solution.ObjectiveValue()/10, )
+    #dist_2 = np.sum(points['distance_matrix'])
+    #print('sum',dist_2/10)
 
     # build a trivial solution
     # visit the nodes in the order they appear in the file
-    obj_0 = length(points[solution_[-1]], points[solution_[0]])
-    for index in range(0, nodeCount-1):
-        obj_0 += length(points[solution_[index]], points[solution_[index+1]])
-    #print(obj_0)
-    # calculate the length of the tour
-    #obj = solution.ObjectiveValue()
-    #print(obj)
-
+    
     # prepare the solution in the specified output format
-    output_data = '%.2f' % obj_0 + ' ' + str(0) + '\n'
-    output_data += ' '.join(map(str, solution_))
+    output_data = str(cost)+' '  + str(0) + '\n'
+    output_data += ' '.join(map(str, routes[0][:-1]))
 
     return output_data
 
 
-import sys
 
 if __name__ == '__main__':
     import sys
-    file_location = "path_to_files" # tsp_51_1, tsp_5_1
+    file_location = "data/tsp_51_1" # data\tsp_51_1, data/tsp_5_1 tsp_1400_1 data/tsp_100_1
     with open(file_location, 'r') as input_data_file:
         input_data = input_data_file.read()
         print(solve_it(input_data))
-
     
